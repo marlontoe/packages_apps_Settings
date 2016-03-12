@@ -16,8 +16,6 @@
 
 package com.android.settings;
 
-import android.content.ComponentName;
-import android.telephony.MSimTelephonyManager;
 import com.android.settings.bluetooth.DockEventReceiver;
 import com.android.settings.hardware.VibratorIntensity;
 
@@ -46,6 +44,7 @@ import android.os.Vibrator;
 import android.preference.CheckBoxPreference;
 import android.preference.ListPreference;
 import android.preference.Preference;
+import android.preference.PreferenceCategory;
 import android.preference.PreferenceGroup;
 import android.preference.PreferenceScreen;
 import android.provider.MediaStore;
@@ -60,7 +59,7 @@ import java.util.Calendar;
 import java.util.List;
 
 public class SoundSettings extends SettingsPreferenceFragment implements
-        Preference.OnPreferenceChangeListener, Preference.OnPreferenceClickListener {
+        Preference.OnPreferenceChangeListener {
     private static final String TAG = "SoundSettings";
 
     private static final int DIALOG_NOT_DOCKED = 1;
@@ -136,8 +135,10 @@ public class SoundSettings extends SettingsPreferenceFragment implements
 
     private CheckBoxPreference mPowerSounds;
     private CheckBoxPreference mPowerSoundsVibrate;
-    private MSimTelephonyManager mSimTelephonyManager;
     private Preference mPowerSoundsRingtone;
+
+    private Preference mDolbyMobileSettings;
+    private PreferenceCategory mDolbyMobileSettingsCategory;
 
     private Handler mHandler = new Handler() {
         public void handleMessage(Message msg) {
@@ -172,14 +173,6 @@ public class SoundSettings extends SettingsPreferenceFragment implements
         int activePhoneType = TelephonyManager.getDefault().getCurrentPhoneType();
 
         mAudioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
-        mSimTelephonyManager =
-                (MSimTelephonyManager) getSystemService(Context.MSIM_TELEPHONY_SERVICE);
-
-        if (mSimTelephonyManager.isMultiSimEnabled()) {
-            addPreferencesFromResource(R.xml.msim_ringtone_settings);
-        } else {
-            addPreferencesFromResource(R.xml.ringtone_settings);
-        }
 
         addPreferencesFromResource(R.xml.sound_settings);
 
@@ -253,6 +246,17 @@ public class SoundSettings extends SettingsPreferenceFragment implements
             mMusicFx.setSummary(ris.get(0).loadLabel(p));
         }
 
+        mDolbyMobileSettingsCategory = (PreferenceCategory)findPreference("dolby_mobile_settings_category");
+        mDolbyMobileSettings = findPreference("dolby_mobile_settings");
+        Intent dolbyIntent = new Intent("com.huawei.android.globaldolbyeffect.GlobalDolbyEffectActivity");
+        List<ResolveInfo> homes = getPackageManager().queryIntentActivities(dolbyIntent, 0);
+        if((homes == null) || (homes.size() == 0)) {
+            if((mDolbyMobileSettingsCategory != null) && (mDolbyMobileSettings != null)) {
+                getPreferenceScreen().removePreference(mDolbyMobileSettingsCategory);
+                getPreferenceScreen().removePreference(mDolbyMobileSettings);
+            }
+        }
+
         if (!Utils.isVoiceCapable(getActivity())) {
             for (String prefKey : NEED_VOICE_CAPABILITY) {
                 Preference pref = findPreference(prefKey);
@@ -263,14 +267,9 @@ public class SoundSettings extends SettingsPreferenceFragment implements
             mRingtonePreference = null;
         }
 
-        // Set a new onclick listener if our preference is inherited from msim_ringtone_settings
-        if (mRingtonePreference != null && mSimTelephonyManager.isMultiSimEnabled()) {
-            mRingtonePreference.setOnPreferenceClickListener(this);
-        }
-
         mRingtoneLookupRunnable = new Runnable() {
             public void run() {
-                if (!mSimTelephonyManager.isMultiSimEnabled() && mRingtonePreference != null) {
+                if (mRingtonePreference != null) {
                     updateRingtoneName(RingtoneManager.TYPE_RINGTONE, mRingtonePreference,
                             MSG_UPDATE_RINGTONE_SUMMARY);
                 }
@@ -656,23 +655,6 @@ public class SoundSettings extends SettingsPreferenceFragment implements
         ab.setMessage(R.string.dock_not_found_text);
         ab.setPositiveButton(android.R.string.ok, null);
         return ab.create();
-    }
-
-    @Override
-    public boolean onPreferenceClick(Preference preference) {
-        if (preference == mRingtonePreference && mSimTelephonyManager.isMultiSimEnabled()) {
-            Intent intent = new Intent();
-            intent.setAction(Intent.ACTION_MAIN);
-            intent.putExtra("PACKAGE", "com.android.phone");
-            intent.putExtra("TARGET_CLASS",
-                    "com.android.phone.MSimCallFeaturesSubSetting");
-            intent.setComponent(new ComponentName("com.android.phone",
-                    "com.android.phone.SelectSubscription"));
-            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-            startActivity(intent);
-            return true;
-        }
-        return false;
     }
 }
 
